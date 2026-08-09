@@ -1,16 +1,17 @@
-# 
+# numpy hand coded neural network learning to fit training data
+# stochastic gradient descent, squared loss with no regularizer, 3 layers, loss gradients for now found via finite differences rather than autodiff logic in interest of time
 
 import numpy as np
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
-#from matplotlib.animation import FFMpegWriter
-from matplotlib.animation import PillowWriter
+from matplotlib.animation import PillowWriter   
 from pathlib import Path
 
 #generate training data set, D_TR
 #f = lambda x: np.sin(2 * np.pi * x) + 0.3 * np.sin(8 * np.pi * x)
-f = lambda x: np.sin(1 * np.pi * x) + 0.001 * np.sin(8 * np.pi * x)
+f = lambda x: np.sin(1.5 * np.pi * x) + 0.4 * np.sin(8 * np.pi * x)
 #f = lambda x: 2*x + 3
+#f = lambda x: np.sin(np.pi*(x+1)*(1 + (x+1)))
 
 dimension_x = 1
 def make_data(n=256, noise=0.05, gap_start= -0.3, gap_end = 0.0, seed=0):
@@ -27,15 +28,11 @@ def make_data(n=256, noise=0.05, gap_start= -0.3, gap_end = 0.0, seed=0):
 [x_TR, y_TR, dataset_size] = make_data()
 plt.scatter(x_TR, y_TR)
 plt.show()
-#print(x_TR)
-#sprint(dataset_size)
-
-
 
 #manual NN setup, define and initialise weights, and define all key functions (h(x), L(h), loss gradients etc)
 #defining key parameters, this is hard coded in later at this stage, next step is to make code versatile
-n_layers = 3
-n_width = 10
+#n_layers = 3
+n_width = 20
 
 #augment x states
 # Create an array of 1.0s with the same length as your original array
@@ -179,56 +176,60 @@ def updateparams(params, dLdw_fdiff, dLdU1_fdiff, dLdU2_fdiff, learning_rate):
 
 # learning loop and logic
 loop_n = 2000
-loss_array = np.empty((loop_n, 1), dtype=np.float64)
 batch_proportion = 0.015
 learning_rate = 5e-2
 
-#plt.ion() 
-#fig = plt.figure() 
-#fig, (hfit, losscurve) = plt.subplots(1, 2, figsize=(11, 4.5))
-#hfit.plt.scatter(x_TR, y_TR, label="Training Data", color="blue")
+loss_array = np.empty((loop_n, 1), dtype=np.float64)
+
+#plotting setup
+SAVE_GIF = False
+out_path = Path(r"C:\Users\leosu\ML26\Neural Network SL by hand\training2.gif")
 
 x_grid = np.linspace(-1.5, 1.5, 200)
 X_grid_aug = np.vstack((x_grid, np.ones_like(x_grid)))
 plt.ion()
 fig, (ax_fit, ax_loss) = plt.subplots(1, 2, figsize=(11, 4.5))
-out_path = Path(r"C:\Users\leosu\ML26\Neural Network SL by hand\training.gif")
 writer = PillowWriter(fps=20)
+if SAVE_GIF:
+    writer.setup(fig, str(out_path), dpi=80)
 
-with writer.saving(fig, str(out_path), dpi=80):
-    for loop_i in range(loop_n):
-        #evaluate L(h)
-        lossval = Loss(params, x_TR, y_TR)
-        #print(lossval)
-        loss_array[loop_i] = lossval
 
-        #evaluate loss gradients 
-        [dLdw_fdiff, dLdU1_fdiff, dLdU2_fdiff] = lossgrads_finitediff(x_TR, y_TR, dimension_x, params, dataset_size, batch_proportion)
+for loop_i in range(loop_n):
 
-        #update params according to stochastic gradient descent optimisation
-        updateparams(params, dLdw_fdiff, dLdU1_fdiff, dLdU2_fdiff, learning_rate)
-        print((loop_i/loop_n) * 100, "%")
+    #evaluate L(h)
+    lossval = Loss(params, x_TR, y_TR)
+    #print(lossval)
+    loss_array[loop_i] = lossval
 
-        if loop_i % 10 == 0:
-            #h_line = ploth(params, h_line)
-            #plt.pause(0.01) # Briefly pause to allow the plot to draw on screen
+    #evaluate loss gradients 
+    [dLdw_fdiff, dLdU1_fdiff, dLdU2_fdiff] = lossgrads_finitediff(x_TR, y_TR, dimension_x, params, dataset_size, batch_proportion)
 
-            ax_fit.cla()
-            ax_fit.scatter(x_TR, y_TR, s=8)
-            ax_fit.plot(x_grid, h(X_grid_aug, params).ravel(), "r")
-            ax_fit.set_ylim(-2, 2)             # must re-set: cla() wipes it
+    #update params according to stochastic gradient descent optimisation
+    updateparams(params, dLdw_fdiff, dLdU1_fdiff, dLdU2_fdiff, learning_rate)
 
-            ax_loss.cla()
-            ax_loss.semilogy(loss_array[:loop_i + 1])
+    completion_percentage = (loop_i/loop_n) * 100
+    if completion_percentage % 1.0 == 0:
+        print(completion_percentage, "%")
 
-            plt.pause(0.01)
+    if loop_i % 10 == 0: #plotting
+        ax_fit.cla()
+        ax_fit.scatter(x_TR, y_TR, s=8)
+        ax_fit.plot(x_grid, h(X_grid_aug, params).ravel(), "r")
+        ax_fit.set_ylim(-2, 2)             # must re-set: cla() wipes it
+
+        ax_loss.cla()
+        ax_loss.semilogy(loss_array[:loop_i + 1])
+
+        plt.pause(0.01)
+        if SAVE_GIF:
             writer.grab_frame()
 
-plt.ioff()
-plt.figure()
-print(loss_array)
-#plt.show()
+if SAVE_GIF:
+    writer.finish()
 
-plt.figure()
-plt.plot(np.arange(1, loop_n + 1), loss_array)
-plt.show()
+plt.ioff()
+#plt.figure()
+print(loss_array)
+
+#plt.plot(np.arange(1, loop_n + 1), loss_array)
+
